@@ -2,212 +2,203 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>読書ログ＆カレンダー管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Study Progress Tracker</title>
 <style>
-  body { font-family: -apple-system, sans-serif; padding: 15px; background: #f8f9fa; color: #333; }
-  .card { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-  h2 { color: #1a73e8; font-size: 1.4em; border-bottom: 2px solid #f1f3f4; padding-bottom: 10px; }
+  :root { --primary-color: #4285f4; --bg-color: #f7f9fc; --card-bg: #ffffff; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg-color); margin: 0; padding: 10px; color: #3c4043; }
   
-  .input-group { margin-bottom: 15px; }
-  label { display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 5px; color: #5f6368; }
-  input, select { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+  /* レスポンシブコンテナ */
+  .container { max-width: 800px; margin: 0 auto; }
+  .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); margin-bottom: 15px; }
+
+  /* PCとスマホで分けるUI設定 */
+  @media (min-width: 600px) {
+    .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    h1 { font-size: 24px; }
+  }
+  @media (max-width: 599px) {
+    .input-grid { display: flex; flex-direction: column; gap: 10px; }
+    h1 { font-size: 20px; text-align: center; }
+    button { min-height: 48px; } /* スマホで押しやすく */
+  }
+
+  h1 { color: var(--primary-color); margin-top: 0; }
+  select, input { padding: 12px; border: 1px solid #dadce0; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
   
-  #bar { width: 100%; height: 30px; background: #e8eaed; position: relative; border-radius: 15px; overflow: hidden; margin: 15px 0; border: 1px solid #dee2e6; }
-  .fill { position: absolute; height: 100%; background: linear-gradient(90deg, #34a853, #b7e1cd); }
+  /* 進捗バーの改善 */
+  .progress-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+  #bar-container { width: 100%; height: 24px; background: #e8eaed; border-radius: 12px; overflow: hidden; position: relative; border: 1px solid #dee2e6; }
+  .fill { position: absolute; height: 100%; background: linear-gradient(90deg, #34a853, #66bb6a); transition: width 0.3s ease; }
   
-  .btn-row { display: flex; gap: 8px; }
-  button { flex: 1; padding: 12px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
-  .btn-primary { background: #1a73e8; color: white; }
-  .btn-success { background: #34a853; color: white; }
-  .btn-outline { background: white; border: 1px solid #dadce0; color: #5f6368; }
+  .btn { border: none; border-radius: 8px; padding: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+  .btn-add { background: var(--primary-color); color: white; width: 100%; margin-top: 10px; }
+  .btn-del { background: #fee; color: #d93025; font-size: 12px; padding: 5px 10px; border: 1px solid #f8d7da; }
 
   /* 履歴エリア */
-  .history-section { margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px; }
-  .history-item { font-size: 0.9em; padding: 8px; border-bottom: 1px solid #f8f9fa; display: flex; justify-content: space-between; }
-  .history-date { color: #80868b; min-width: 90px; }
-  .history-content { flex-grow: 1; padding-left: 10px; }
+  .history-list { margin-top: 20px; }
+  .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f3f4; background: #fff; border-radius: 8px; margin-bottom: 5px; }
+  .history-info { display: flex; flex-direction: column; }
+  .hist-date { font-size: 12px; color: #70757a; }
+  .hist-range { font-weight: bold; }
 
-  .stats { text-align: center; font-weight: bold; margin-bottom: 5px; }
+  /* 広告スペースのシミュレーション */
+  .ad-space { background: #eee; text-align: center; color: #999; font-size: 12px; padding: 10px; margin: 10px 0; border: 1px dashed #ccc; }
 </style>
 </head>
 <body>
 
-<div class="card">
-  <h2>📚 読書ログ＆カレンダー</h2>
+<div class="container">
+  <h1>📖 Study Tracker</h1>
 
-  <div class="input-group">
-    <label>本を選択：</label>
+  <div class="ad-space">AD: Google AdSense (Header)</div>
+
+  <div class="card">
+    <label style="font-size:12px; color:#666;">教材を選択</label>
     <select id="bookSelector" onchange="switchBook()"></select>
-  </div>
-
-  <div class="input-group">
-    <label>新しい本を追加：</label>
-    <div class="btn-row">
-      <input type="text" id="newBookTitle" placeholder="本のタイトル">
-      <input type="number" id="total" placeholder="総ページ" style="width:100px;">
-      <button class="btn-primary" onclick="addNewBook()" style="flex:0.5;">追加</button>
-    </div>
-  </div>
-
-  <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
-
-  <div id="progressArea" style="display:none;">
-    <div class="stats" id="bookTitleDisplay"></div>
-    <div id="bar"></div>
-    <div class="stats" id="stats">0% (0 / 0 ページ)</div>
-
-    <div class="input-group" style="margin-top:20px;">
-      <label>読了記録（日付と範囲）：</label>
-      <input type="date" id="dateInput" style="margin-bottom:8px;">
-      <div class="btn-row">
-        <input type="text" id="rangeInput" placeholder="例: 10-30">
-        <button class="btn-success" onclick="addRecord()">記録する</button>
-      </div>
-    </div>
-
-    <div class="history-section">
-      <label>📖 読書履歴（最新順）</label>
-      <div id="historyList"></div>
-    </div>
     
-    <button class="btn-outline" onclick="deleteCurrentBook()" style="margin-top:30px; width:100%; color:#d93025;">この本を削除</button>
+    <div id="newBookSection" style="margin-top:15px; border-top:1px solid #eee; padding-top:10px;">
+      <label style="font-size:12px; color:#666;">新しい教材を登録</label>
+      <div class="input-grid">
+        <input type="text" id="newBookTitle" placeholder="例：物理重要問題集">
+        <input type="number" id="totalPage" placeholder="総ページ数">
+      </div>
+      <button class="btn btn-add" onclick="addNewBook()">教材を追加</button>
+    </div>
+  </div>
+
+  <div id="mainDisplay" style="display:none;">
+    <div class="card">
+      <div class="progress-header">
+        <span id="displayTitle">教材名</span>
+        <span id="displayStat">0 / 0 (0%)</span>
+      </div>
+      <div id="bar-container"></div>
+      
+      <div class="input-grid" style="margin-top:20px;">
+        <input type="date" id="logDate">
+        <input type="text" id="logRange" placeholder="範囲 (例: 1-15)">
+      </div>
+      <button class="btn btn-add" style="background:#34a853;" onclick="addLog()">学習内容を記録</button>
+    </div>
+
+    <div class="ad-space">AD: Google AdSense (Feed)</div>
+
+    <div class="history-list" id="historyList">
+      </div>
   </div>
 </div>
 
 <script>
-let books = {}; 
-let currentBookTitle = "";
+let data = JSON.parse(localStorage.getItem('studyLogData') || '{}');
+let currentBook = "";
 
-window.onload = function() {
-  const saved = localStorage.getItem("myAdvancedReadingLog");
-  if (saved) {
-    books = JSON.parse(saved);
-    updateSelector();
-  }
-  // 今日の日付をデフォルトセット
-  document.getElementById('dateInput').valueAsDate = new Date();
+window.onload = () => {
+  updateSelector();
+  document.getElementById('logDate').valueAsDate = new Date();
 };
 
 function updateSelector() {
-  const selector = document.getElementById("bookSelector");
-  selector.innerHTML = '<option value="">-- 本を選んでください --</option>';
-  for (let title in books) {
-    const opt = document.createElement("option");
-    opt.value = title;
-    opt.innerText = title;
-    selector.appendChild(opt);
+  const sel = document.getElementById('bookSelector');
+  sel.innerHTML = '<option value="">-- 教材を選んでください --</option>';
+  for (let t in data) {
+    let opt = document.createElement('option');
+    opt.value = t; opt.innerText = t;
+    sel.appendChild(opt);
   }
 }
 
 function addNewBook() {
-  const title = document.getElementById("newBookTitle").value.trim();
-  const total = parseInt(document.getElementById("total").value);
-  if (!title || isNaN(total)) return alert("タイトルと総ページを入れてね");
-  
-  books[title] = { total: total, records: [] }; // recordsに日付と範囲を保存
+  const title = document.getElementById('newBookTitle').value.trim();
+  const total = parseInt(document.getElementById('totalPage').value);
+  if (!title || !total) return alert("タイトルとページ数を入力してください");
+  data[title] = { total: total, logs: [] };
   save();
   updateSelector();
-  document.getElementById("bookSelector").value = title;
+  document.getElementById('bookSelector').value = title;
   switchBook();
-  document.getElementById("newBookTitle").value = "";
-  document.getElementById("total").value = "";
 }
 
 function switchBook() {
-  currentBookTitle = document.getElementById("bookSelector").value;
-  const area = document.getElementById("progressArea");
-  if (currentBookTitle) {
-    area.style.display = "block";
-    document.getElementById("bookTitleDisplay").innerText = "📖 " + currentBookTitle;
-    draw();
-  } else {
-    area.style.display = "none";
-  }
+  currentBook = document.getElementById('bookSelector').value;
+  const display = document.getElementById('mainDisplay');
+  if (!currentBook) { display.style.display = 'none'; return; }
+  display.style.display = 'block';
+  document.getElementById('displayTitle').innerText = currentBook;
+  refresh();
 }
 
-function addRecord() {
-  const date = document.getElementById("dateInput").value;
-  const rangeStr = document.getElementById("rangeInput").value;
-  const [start, end] = rangeStr.split("-").map(Number);
-  const book = books[currentBookTitle];
-
-  if (!date || isNaN(start) || isNaN(end) || start >= end || end > book.total) {
-    return alert("正しい日付と範囲を入力してね");
-  }
-
-  // 履歴として追加
-  book.records.unshift({ date, start, end });
-  save();
-  draw();
-  document.getElementById("rangeInput").value = "";
-}
-
-function draw() {
-  const book = books[currentBookTitle];
-  const bar = document.getElementById("bar");
-  const hist = document.getElementById("historyList");
-  bar.innerHTML = "";
-  hist.innerHTML = "";
+function addLog() {
+  const date = document.getElementById('logDate').value;
+  const range = document.getElementById('logRange').value;
+  const [s, e] = range.split('-').map(Number);
+  if (!date || isNaN(s) || isNaN(e) || s > e) return alert("入力が正しくありません");
   
-  // 表示用の統合範囲リストを作成
-  let displayRanges = [];
-  let readPages = 0;
+  data[currentBook].logs.unshift({ id: Date.now(), date, s, e });
+  save();
+  refresh();
+  document.getElementById('logRange').value = "";
+}
 
-  book.records.forEach(r => {
-    displayRanges.push({start: r.start, end: r.end});
-    
-    // 履歴テキストの作成
-    const item = document.createElement("div");
-    item.className = "history-item";
-    item.innerHTML = `<span class="history-date">${r.date}</span><span class="history-content">${r.start} 〜 ${r.end} ページ</span>`;
-    hist.appendChild(item);
+function deleteLog(id) {
+  if (!confirm("この記録を削除しますか？")) return;
+  data[currentBook].logs = data[currentBook].logs.filter(l => l.id !== id);
+  save();
+  refresh();
+}
+
+function refresh() {
+  const book = data[currentBook];
+  const list = document.getElementById('historyList');
+  const barCont = document.getElementById('bar-container');
+  list.innerHTML = "<h3>学習履歴</h3>";
+  barCont.innerHTML = "";
+
+  let ranges = [];
+  book.logs.forEach(l => {
+    ranges.push({s: l.s, e: l.e});
+    // 履歴アイテムの作成
+    let div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <div class="history-info">
+        <span class="hist-date">${l.date}</span>
+        <span class="hist-range">${l.s} 〜 ${l.e} ページ</span>
+      </div>
+      <button class="btn btn-del" onclick="deleteLog(${l.id})">削除</button>
+    `;
+    list.appendChild(div);
   });
 
-  // バー描画用に範囲をマージ
-  const merged = mergeRanges([...displayRanges]);
+  // 進捗計算
+  let merged = merge([...ranges]);
+  let count = 0;
   merged.forEach(r => {
-    const div = document.createElement("div");
-    div.className = "fill";
-    div.style.left = (r.start / book.total) * 100 + "%";
-    div.style.width = ((r.end - r.start) / book.total) * 100 + "%";
-    bar.appendChild(div);
-    readPages += (r.end - r.start);
+    count += (r.e - r.s + 1);
+    let fill = document.createElement('div');
+    fill.className = 'fill';
+    fill.style.left = ((r.s - 1) / book.total * 100) + "%";
+    fill.style.width = ((r.e - r.s + 1) / book.total * 100) + "%";
+    barCont.appendChild(fill);
   });
 
-  const percent = Math.round((readPages / book.total) * 100);
-  document.getElementById("stats").innerText = `${percent}% (${readPages} / ${book.total} ページ)`;
+  let p = Math.floor(count / book.total * 100);
+  document.getElementById('displayStat').innerText = `${count} / ${book.total} P (${p}%)`;
 }
 
-function mergeRanges(ranges) {
-  if (ranges.length <= 1) return ranges;
-  ranges.sort((a, b) => a.start - b.start);
-  const result = [ranges[0]];
-  for (let i = 1; i < ranges.length; i++) {
-    let last = result[result.length - 1];
-    let current = ranges[i];
-    if (current.start <= last.end) {
-      last.end = Math.max(last.end, current.end);
-    } else {
-      result.push(current);
-    }
+function merge(rs) {
+  if (!rs.length) return [];
+  rs.sort((a,b) => a.s - b.s);
+  let res = [rs[0]];
+  for (let i=1; i<rs.length; i++) {
+    let last = res[res.length-1];
+    if (rs[i].s <= last.e + 1) last.e = Math.max(last.e, rs[i].e);
+    else res.push(rs[i]);
   }
-  return result;
+  return res;
 }
 
-function save() {
-  localStorage.setItem("myAdvancedReadingLog", JSON.stringify(books));
-}
-
-function deleteCurrentBook() {
-  if (confirm("この本のデータをすべて削除しますか？")) {
-    delete books[currentBookTitle];
-    save();
-    updateSelector();
-    switchBook();
-  }
-}
+function save() { localStorage.setItem('studyLogData', JSON.stringify(data)); }
 </script>
-
 </body>
 </html>
