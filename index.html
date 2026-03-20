@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>読書ログ＆カレンダー管理</title>
+<style>
+  body { font-family: -apple-system, sans-serif; padding: 15px; background: #f8f9fa; color: #333; }
+  .card { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  h2 { color: #1a73e8; font-size: 1.4em; border-bottom: 2px solid #f1f3f4; padding-bottom: 10px; }
+  
+  .input-group { margin-bottom: 15px; }
+  label { display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 5px; color: #5f6368; }
+  input, select { width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+  
+  #bar { width: 100%; height: 30px; background: #e8eaed; position: relative; border-radius: 15px; overflow: hidden; margin: 15px 0; border: 1px solid #dee2e6; }
+  .fill { position: absolute; height: 100%; background: linear-gradient(90deg, #34a853, #b7e1cd); }
+  
+  .btn-row { display: flex; gap: 8px; }
+  button { flex: 1; padding: 12px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
+  .btn-primary { background: #1a73e8; color: white; }
+  .btn-success { background: #34a853; color: white; }
+  .btn-outline { background: white; border: 1px solid #dadce0; color: #5f6368; }
+
+  /* 履歴エリア */
+  .history-section { margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px; }
+  .history-item { font-size: 0.9em; padding: 8px; border-bottom: 1px solid #f8f9fa; display: flex; justify-content: space-between; }
+  .history-date { color: #80868b; min-width: 90px; }
+  .history-content { flex-grow: 1; padding-left: 10px; }
+
+  .stats { text-align: center; font-weight: bold; margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2>📚 読書ログ＆カレンダー</h2>
+
+  <div class="input-group">
+    <label>本を選択：</label>
+    <select id="bookSelector" onchange="switchBook()"></select>
+  </div>
+
+  <div class="input-group">
+    <label>新しい本を追加：</label>
+    <div class="btn-row">
+      <input type="text" id="newBookTitle" placeholder="本のタイトル">
+      <input type="number" id="total" placeholder="総ページ" style="width:100px;">
+      <button class="btn-primary" onclick="addNewBook()" style="flex:0.5;">追加</button>
+    </div>
+  </div>
+
+  <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+
+  <div id="progressArea" style="display:none;">
+    <div class="stats" id="bookTitleDisplay"></div>
+    <div id="bar"></div>
+    <div class="stats" id="stats">0% (0 / 0 ページ)</div>
+
+    <div class="input-group" style="margin-top:20px;">
+      <label>読了記録（日付と範囲）：</label>
+      <input type="date" id="dateInput" style="margin-bottom:8px;">
+      <div class="btn-row">
+        <input type="text" id="rangeInput" placeholder="例: 10-30">
+        <button class="btn-success" onclick="addRecord()">記録する</button>
+      </div>
+    </div>
+
+    <div class="history-section">
+      <label>📖 読書履歴（最新順）</label>
+      <div id="historyList"></div>
+    </div>
+    
+    <button class="btn-outline" onclick="deleteCurrentBook()" style="margin-top:30px; width:100%; color:#d93025;">この本を削除</button>
+  </div>
+</div>
+
+<script>
+let books = {}; 
+let currentBookTitle = "";
+
+window.onload = function() {
+  const saved = localStorage.getItem("myAdvancedReadingLog");
+  if (saved) {
+    books = JSON.parse(saved);
+    updateSelector();
+  }
+  // 今日の日付をデフォルトセット
+  document.getElementById('dateInput').valueAsDate = new Date();
+};
+
+function updateSelector() {
+  const selector = document.getElementById("bookSelector");
+  selector.innerHTML = '<option value="">-- 本を選んでください --</option>';
+  for (let title in books) {
+    const opt = document.createElement("option");
+    opt.value = title;
+    opt.innerText = title;
+    selector.appendChild(opt);
+  }
+}
+
+function addNewBook() {
+  const title = document.getElementById("newBookTitle").value.trim();
+  const total = parseInt(document.getElementById("total").value);
+  if (!title || isNaN(total)) return alert("タイトルと総ページを入れてね");
+  
+  books[title] = { total: total, records: [] }; // recordsに日付と範囲を保存
+  save();
+  updateSelector();
+  document.getElementById("bookSelector").value = title;
+  switchBook();
+  document.getElementById("newBookTitle").value = "";
+  document.getElementById("total").value = "";
+}
+
+function switchBook() {
+  currentBookTitle = document.getElementById("bookSelector").value;
+  const area = document.getElementById("progressArea");
+  if (currentBookTitle) {
+    area.style.display = "block";
+    document.getElementById("bookTitleDisplay").innerText = "📖 " + currentBookTitle;
+    draw();
+  } else {
+    area.style.display = "none";
+  }
+}
+
+function addRecord() {
+  const date = document.getElementById("dateInput").value;
+  const rangeStr = document.getElementById("rangeInput").value;
+  const [start, end] = rangeStr.split("-").map(Number);
+  const book = books[currentBookTitle];
+
+  if (!date || isNaN(start) || isNaN(end) || start >= end || end > book.total) {
+    return alert("正しい日付と範囲を入力してね");
+  }
+
+  // 履歴として追加
+  book.records.unshift({ date, start, end });
+  save();
+  draw();
+  document.getElementById("rangeInput").value = "";
+}
+
+function draw() {
+  const book = books[currentBookTitle];
+  const bar = document.getElementById("bar");
+  const hist = document.getElementById("historyList");
+  bar.innerHTML = "";
+  hist.innerHTML = "";
+  
+  // 表示用の統合範囲リストを作成
+  let displayRanges = [];
+  let readPages = 0;
+
+  book.records.forEach(r => {
+    displayRanges.push({start: r.start, end: r.end});
+    
+    // 履歴テキストの作成
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.innerHTML = `<span class="history-date">${r.date}</span><span class="history-content">${r.start} 〜 ${r.end} ページ</span>`;
+    hist.appendChild(item);
+  });
+
+  // バー描画用に範囲をマージ
+  const merged = mergeRanges([...displayRanges]);
+  merged.forEach(r => {
+    const div = document.createElement("div");
+    div.className = "fill";
+    div.style.left = (r.start / book.total) * 100 + "%";
+    div.style.width = ((r.end - r.start) / book.total) * 100 + "%";
+    bar.appendChild(div);
+    readPages += (r.end - r.start);
+  });
+
+  const percent = Math.round((readPages / book.total) * 100);
+  document.getElementById("stats").innerText = `${percent}% (${readPages} / ${book.total} ページ)`;
+}
+
+function mergeRanges(ranges) {
+  if (ranges.length <= 1) return ranges;
+  ranges.sort((a, b) => a.start - b.start);
+  const result = [ranges[0]];
+  for (let i = 1; i < ranges.length; i++) {
+    let last = result[result.length - 1];
+    let current = ranges[i];
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      result.push(current);
+    }
+  }
+  return result;
+}
+
+function save() {
+  localStorage.setItem("myAdvancedReadingLog", JSON.stringify(books));
+}
+
+function deleteCurrentBook() {
+  if (confirm("この本のデータをすべて削除しますか？")) {
+    delete books[currentBookTitle];
+    save();
+    updateSelector();
+    switchBook();
+  }
+}
+</script>
+
+</body>
+</html>
